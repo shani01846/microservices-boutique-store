@@ -1,0 +1,70 @@
+---
+config:
+  theme: mc
+  layout: dagre
+---
+graph TB
+    subgraph Frontend["Frontend — Next.js 14 :3000"]
+        UI_Auth["auth/login & register"]
+        UI_Cart["cart/"]
+        UI_Admin["admin/ (Admin only)"]
+        UI_Header["Header + Navigation"]
+    end
+
+    subgraph API["Backend — .NET 8 API :5000"]
+        AuthCtrl["AuthController\n/api/auth"]
+        ProductsCtrl["ProductsController\n/api/products"]
+        CartCtrl["CartController\n/api/cart"]
+        OrdersCtrl["OrdersController\n/api/orders"]
+        HealthCtrl["HealthController\n/api/health"]
+
+        subgraph Application["Application Layer"]
+            IJwt["IJwtService"]
+            IOrder["IOrderService"]
+        end
+
+        subgraph Infrastructure["Infrastructure Layer"]
+            JwtSvc["JwtService"]
+            OrderSvc["OrderService"]
+            DbCtx["ApplicationDbContext\nEF Core"]
+        end
+    end
+
+    subgraph DB["PostgreSQL :5432"]
+        Users[("Users")]
+        Products[("Products")]
+        Orders[("Orders")]
+        OrderItems[("OrderItems")]
+        Carts[("Carts")]
+        CartItems[("CartItems")]
+    end
+
+    UI_Auth -->|"POST /api/auth/login\nPOST /api/auth/register"| AuthCtrl
+    UI_Cart -->|"GET/POST/PUT/DELETE /api/cart"| CartCtrl
+    UI_Cart -->|"POST /api/orders/from-cart"| OrdersCtrl
+    UI_Admin -->|"POST/PUT/DELETE /api/products"| ProductsCtrl
+    UI_Header -->|"GET /api/products"| ProductsCtrl
+
+    AuthCtrl --> DbCtx
+    AuthCtrl --> IJwt
+    ProductsCtrl --> DbCtx
+    CartCtrl --> DbCtx
+    OrdersCtrl --> IOrder
+
+    IJwt --> JwtSvc
+    IOrder --> OrderSvc
+    OrderSvc --> DbCtx
+
+    DbCtx --> Users
+    DbCtx --> Products
+    DbCtx --> Orders
+    DbCtx --> OrderItems
+    DbCtx --> Carts
+    DbCtx --> CartItems
+
+    Users -->|"1 : 1"| Carts
+    Users -->|"1 : N"| Orders
+    Orders -->|"1 : N"| OrderItems
+    Carts -->|"1 : N"| CartItems
+    OrderItems -->|"N : 1"| Products
+    CartItems -->|"N : 1"| Products
