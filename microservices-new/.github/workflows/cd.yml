@@ -1,0 +1,30 @@
+name: CD - Build and Push Docker Images
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAMESPACE: ${{ github.repository_owner }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push images
+        run: |
+          docker build -f api-gateway/Dockerfile -t $REGISTRY/$IMAGE_NAMESPACE/api-gateway:${GITHUB_REF#refs/tags/} ./api-gateway
+          docker push $REGISTRY/$IMAGE_NAMESPACE/api-gateway:${GITHUB_REF#refs/tags/}
+          # Repeat for other services
+          echo "Add other service image builds here"

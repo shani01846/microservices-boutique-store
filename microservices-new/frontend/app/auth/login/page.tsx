@@ -80,7 +80,7 @@ export default function Login() {
         </form>
 
         <p className="text-center mt-8 text-xs tracking-widest font-sans text-stone">
-          New to Maison?{' '}
+          New to VÈRA?{' '}
           <Link href="/auth/register" className="text-noir hover:text-gold transition-colors duration-300 underline underline-offset-4">
             Create an account
           </Link>

@@ -53,6 +53,20 @@ services:
       timeout: 5s
       retries: 5
 
+  seq:
+    image: datalust/seq:latest
+    ports:
+      - "5341:80"
+    environment:
+      - ACCEPT_EULA=Y
+      - SEQ_FIRSTRUN_ADMINPASSWORD=Admin123!
+      - SEQ_FIRSTRUN_ADMINEMAIL=admin@example.com
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ── Services ───────────────────────────────────────────────────────────────
 
   user-service:
@@ -68,6 +82,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   product-service:
     build:
@@ -89,6 +108,37 @@ services:
         condition: service_healthy
       inventory-service:
         condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  product-service-2:
+    build:
+      context: ./product-service
+      dockerfile: Dockerfile
+    environment:
+      - MongoDB__ConnectionString=mongodb://mongo:27017
+      - MongoDB__DatabaseName=productservice
+      - Redis__ConnectionString=redis:6379
+      - Services__Inventory=http://inventory-service:8080
+      - Jwt__SecretKey=MyVeryLongSecretKeyForJWTTokenGeneration123456789!
+      - ASPNETCORE_ENVIRONMENT=Development
+    ports:
+      - "5003:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      inventory-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   inventory-service:
     build:
@@ -104,6 +154,11 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   cart-service:
     build:
@@ -122,6 +177,11 @@ services:
         condition: service_healthy
       inventory-service:
         condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   order-service:
     build:
@@ -140,6 +200,11 @@ services:
         condition: service_healthy
       cart-service:
         condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   notification-service:
     build:
@@ -149,9 +214,18 @@ services:
       - RabbitMQ__Host=rabbitmq
       - Brevo__SmtpKey=${BREVO_SMTP_KEY}
       - Brevo__SmtpLogin=${BREVO_SMTP_LOGIN}
+      - Seq__ServerUrl=http://seq:80
+      - ASPNETCORE_ENVIRONMENT=Development
     depends_on:
       rabbitmq:
         condition: service_healthy
+      seq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   api-gateway:
     build:
@@ -165,9 +239,15 @@ services:
     depends_on:
       - user-service
       - product-service
+      - product-service-2
       - inventory-service
       - cart-service
       - order-service
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   frontend:
     build:

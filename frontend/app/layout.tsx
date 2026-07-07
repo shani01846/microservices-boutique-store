@@ -4,7 +4,7 @@ import { AuthProvider } from '../lib/auth'
 import Header from '../components/Header'
 
 export const metadata: Metadata = {
-  title: 'ECommerce Store',
+  title: 'VÈRA',
   description: 'A modern clothing e-commerce store',
 }
 

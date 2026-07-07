@@ -1,15 +1,49 @@
 using System.Text;
 using System.Text.Json;
+using CorrelationId;
+using CorrelationId.Abstractions;
+using CorrelationId.DependencyInjection;
+using CorrelationId.Providers;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using Serilog;
+using Serilog.Context;
 
-var builder = Host.CreateApplicationBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
+
+// Configure Seq from environment
+var seqServer = builder.Configuration["Seq:ServerUrl"] ?? "http://seq:80";
+
+builder.Host.UseSerilog((context, loggerConfig) =>
+{
+    loggerConfig
+        .Enrich.FromLogContext()
+        .Enrich.WithCorrelationId()
+        .WriteTo.Console()
+    .WriteTo.Seq(seqServer)
+    .Enrich.WithProperty("Service", "notification-service");
+});
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddCorrelationId(options =>
+{
+    options.IncludeInResponse = true;
+    options.UpdateTraceIdentifier = true;
+});
+builder.Services.AddSingleton<ICorrelationIdProvider, GuidCorrelationIdProvider>();
+
 builder.Services.AddHostedService<NotificationWorker>();
-var host = builder.Build();
-host.Run();
+
+var app = builder.Build();
+
+app.UseCorrelationId();
+app.UseSerilogRequestLogging();
+
+app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "notification-service" })).AllowAnonymous();
+app.Run();
 
 public class NotificationWorker : BackgroundService
 {
@@ -26,6 +60,7 @@ public class NotificationWorker : BackgroundService
         _channel!.ExchangeDeclare("order.placed",       ExchangeType.Fanout, durable: true);
         _channel.ExchangeDeclare("inventory.reserved",  ExchangeType.Fanout, durable: true);
         _channel.ExchangeDeclare("inventory.rejected",  ExchangeType.Fanout, durable: true);
+        Log.Information("RabbitMQ exchanges declared for notification worker");
 
         var placedQ   = _channel.QueueDeclare("notification.order.placed",       durable: true, exclusive: false, autoDelete: false);
         var reservedQ = _channel.QueueDeclare("notification.inventory.reserved", durable: true, exclusive: false, autoDelete: false);
@@ -34,10 +69,23 @@ public class NotificationWorker : BackgroundService
         _channel.QueueBind(placedQ.QueueName,   "order.placed",       "");
         _channel.QueueBind(reservedQ.QueueName, "inventory.reserved", "");
         _channel.QueueBind(rejectedQ.QueueName, "inventory.rejected", "");
+        Log.Information("RabbitMQ queues bound for notification worker: {PlacedQueue}, {ReservedQueue}, {RejectedQueue}", placedQ.QueueName, reservedQ.QueueName, rejectedQ.QueueName);
 
         var consumer = new AsyncEventingBasicConsumer(_channel);
         consumer.Received += async (_, ea) =>
         {
+            if (ea.BasicProperties?.Headers != null && ea.BasicProperties.Headers.TryGetValue("X-Correlation-ID", out var corrObj))
+            {
+                try
+                {
+                    var corr = Encoding.UTF8.GetString((byte[])corrObj);
+                    using var __ = LogContext.PushProperty("CorrelationId", corr);
+                    Log.Information("RabbitMQ consumed with CorrelationId={CorrelationId}", corr);
+                }
+                catch { }
+            }
+
+            Log.Information("RabbitMQ consumed in notification: Exchange={Exchange}, RoutingKey={RoutingKey}, DeliveryTag={DeliveryTag}", ea.Exchange, ea.RoutingKey, ea.DeliveryTag);
             var json = Encoding.UTF8.GetString(ea.Body.ToArray());
 
             if (ea.Exchange == "order.placed")
@@ -45,7 +93,7 @@ public class NotificationWorker : BackgroundService
                 var msg = JsonSerializer.Deserialize<OrderPlacedEvent>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                 if (msg != null)
                 {
-                    Console.WriteLine($"[Notification] 📧 Sending order-received email to {msg.CustomerEmail} for OrderId={msg.OrderId}");
+                    Log.Information("[Notification] Sending order-received email to {CustomerEmail} for OrderId={OrderId}", msg.CustomerEmail, msg.OrderId);
                     await SendOrderReceivedEmailAsync(msg);
                 }
             }
@@ -56,23 +104,25 @@ public class NotificationWorker : BackgroundService
                 {
                     if (ea.Exchange == "inventory.reserved")
                     {
-                        Console.WriteLine($"[Notification] ✅ Order {msg.OrderId} CONFIRMED — sending confirmation email to {msg.CustomerEmail}");
+                        Log.Information("[Notification] Order {OrderId} CONFIRMED - sending confirmation email to {CustomerEmail}", msg.OrderId, msg.CustomerEmail);
                         await SendOrderConfirmedEmailAsync(msg);
                     }
                     else
                     {
-                        Console.WriteLine($"[Notification] ❌ Order {msg.OrderId} CANCELLED for user {msg.UserId}. Reason: {msg.Reason}");
+                        Log.Warning("[Notification] Order {OrderId} CANCELLED for user {UserId}. Reason: {Reason}", msg.OrderId, msg.UserId, msg.Reason);
                         await SendOrderCancelledEmailAsync(msg);
                     }
                 }
             }
 
             _channel.BasicAck(ea.DeliveryTag, false);
+            Log.Information("RabbitMQ ack sent in notification worker: DeliveryTag={DeliveryTag}, Exchange={Exchange}", ea.DeliveryTag, ea.Exchange);
         };
 
         _channel.BasicConsume(placedQ.QueueName,   autoAck: false, consumer: consumer);
         _channel.BasicConsume(reservedQ.QueueName, autoAck: false, consumer: consumer);
         _channel.BasicConsume(rejectedQ.QueueName, autoAck: false, consumer: consumer);
+        Log.Information("RabbitMQ consumers started for notification queues");
 
         await Task.Delay(Timeout.Infinite, stoppingToken);
     }
@@ -83,14 +133,14 @@ public class NotificationWorker : BackgroundService
         var smtpLogin = _config["Brevo:SmtpLogin"];
         if (string.IsNullOrEmpty(smtpKey) || string.IsNullOrEmpty(smtpLogin))
         {
-            Console.WriteLine("[Notification] ⚠️  Brevo SMTP key not configured, skipping email.");
+            Log.Warning("[Notification] Brevo SMTP key not configured, skipping email.");
             return;
         }
 
         try
         {
             var message = new MimeMessage();
-            message.From.Add(new MailboxAddress("ECommerce Store", "shani01846@gmail.com"));
+            message.From.Add(new MailboxAddress("VÈRA", "shani01846@gmail.com"));
             message.To.Add(new MailboxAddress(order.CustomerName, order.CustomerEmail));
             message.Subject = $"Order #{order.OrderId} Confirmed!";
 
@@ -105,11 +155,11 @@ public class NotificationWorker : BackgroundService
             await client.SendAsync(message);
             await client.DisconnectAsync(true);
 
-            Console.WriteLine($"[Notification] ✅ Confirmation email sent to {order.CustomerEmail}");
+            Log.Information("[Notification] Confirmation email sent to {CustomerEmail}", order.CustomerEmail);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Notification] ❌ Failed to send confirmation email: {ex.Message}");
+            Log.Error(ex, "[Notification] Failed to send confirmation email");
         }
     }
 
@@ -122,7 +172,7 @@ public class NotificationWorker : BackgroundService
         try
         {
             var message = new MimeMessage();
-            message.From.Add(new MailboxAddress("ECommerce Store", "shani01846@gmail.com"));
+            message.From.Add(new MailboxAddress("VÈRA", "shani01846@gmail.com"));
             message.To.Add(new MailboxAddress(order.CustomerName, order.CustomerEmail));
             message.Subject = $"Order #{order.OrderId} Cancelled";
             message.Body = new BodyBuilder { HtmlBody = BuildCancelledHtml(order) }.ToMessageBody();
@@ -134,11 +184,11 @@ public class NotificationWorker : BackgroundService
             await client.SendAsync(message);
             await client.DisconnectAsync(true);
 
-            Console.WriteLine($"[Notification] ✅ Cancellation email sent to {order.CustomerEmail}");
+            Log.Information("[Notification] Cancellation email sent to {CustomerEmail}", order.CustomerEmail);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Notification] ❌ Failed to send cancellation email: {ex.Message}");
+            Log.Error(ex, "[Notification] Failed to send cancellation email");
         }
     }
 
@@ -173,14 +223,14 @@ public class NotificationWorker : BackgroundService
         var smtpLogin = _config["Brevo:SmtpLogin"];
         if (string.IsNullOrEmpty(smtpKey) || string.IsNullOrEmpty(smtpLogin))
         {
-            Console.WriteLine("[Notification] ⚠️  Brevo SMTP key not configured, skipping email.");
+            Log.Warning("[Notification] Brevo SMTP key not configured, skipping email.");
             return;
         }
 
         try
         {
             var message = new MimeMessage();
-            message.From.Add(new MailboxAddress("ECommerce Store", "shani01846@gmail.com"));
+            message.From.Add(new MailboxAddress("VÈRA", "shani01846@gmail.com"));
             message.To.Add(new MailboxAddress(order.CustomerName, order.CustomerEmail));
             message.Subject = $"Order #{order.OrderId} Received";
 
@@ -202,11 +252,11 @@ public class NotificationWorker : BackgroundService
             await client.SendAsync(message);
             await client.DisconnectAsync(true);
 
-            Console.WriteLine($"[Notification] ✅ Email sent to {order.CustomerEmail}");
+            Log.Information("[Notification] Email sent to {CustomerEmail}", order.CustomerEmail);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Notification] ❌ Failed to send email: {ex.Message}");
+            Log.Error(ex, "[Notification] Failed to send email");
         }
     }
 
@@ -233,11 +283,22 @@ public class NotificationWorker : BackgroundService
         };
         for (int i = 0; i < 10; i++)
         {
-            try { _connection = factory.CreateConnection(); _channel = _connection.CreateModel(); return; }
-            catch { await Task.Delay(3000, ct); }
+            try
+            {
+                _connection = factory.CreateConnection();
+                _channel = _connection.CreateModel();
+                Log.Information("RabbitMQ connection established for notification worker");
+                return;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "RabbitMQ connection attempt {Attempt}/10 failed for notification worker", i + 1);
+                await Task.Delay(3000, ct);
+            }
         }
         _connection = factory.CreateConnection();
         _channel = _connection.CreateModel();
+        Log.Information("RabbitMQ connection established for notification worker after retries");
     }
 
     public override void Dispose() { _channel?.Dispose(); _connection?.Dispose(); base.Dispose(); }

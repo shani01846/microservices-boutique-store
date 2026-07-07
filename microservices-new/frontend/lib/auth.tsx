@@ -1,5 +1,6 @@
 'use client'
 
+import { apiRequest, API_BASE_URL } from './api'
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 
 interface User {
@@ -10,11 +11,16 @@ interface User {
   role: string
 }
 
+interface RegisterResult {
+  success: boolean
+  message?: string
+}
+
 interface AuthContextType {
   user: User | null
   token: string | null
   login: (email: string, password: string) => Promise<boolean>
-  register: (email: string, password: string, firstName: string, lastName: string) => Promise<boolean>
+  register: (email: string, password: string, firstName: string, lastName: string) => Promise<RegisterResult>
   logout: () => void
   isAdmin: () => boolean
   isLoading: boolean
@@ -40,45 +46,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/auth/login`, {
+      const data = await apiRequest('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        setToken(data.token)
-        setUser(data.user)
-        localStorage.setItem('token', data.token)
-        localStorage.setItem('user', JSON.stringify(data.user))
-        return true
-      }
-      return false
+      setToken(data.token)
+      setUser(data.user)
+      localStorage.setItem('token', data.token)
+      localStorage.setItem('user', JSON.stringify(data.user))
+      return true
     } catch {
       return false
     }
   }
 
-  const register = async (email: string, password: string, firstName: string, lastName: string): Promise<boolean> => {
+  const register = async (email: string, password: string, firstName: string, lastName: string): Promise<RegisterResult> => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/auth/register`, {
+      const data = await apiRequest('/api/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, firstName, lastName })
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        setToken(data.token)
-        setUser(data.user)
-        localStorage.setItem('token', data.token)
-        localStorage.setItem('user', JSON.stringify(data.user))
-        return true
+      setToken(data.token)
+      setUser(data.user)
+      localStorage.setItem('token', data.token)
+      localStorage.setItem('user', JSON.stringify(data.user))
+      return { success: true }
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Registration failed. Please try again.'
       }
-      return false
-    } catch {
-      return false
     }
   }
 

@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "c:\\Users\\User\\Documents\\Courses\\שנה ב\\Projects\\microservices\\microservices-new\\notification-service\\src\\NotificationService.csproj": {}
+    "C:\\Users\\User\\Documents\\Courses\\שנה ב\\Projects\\microservices\\microservices-new\\notification-service\\src\\NotificationService.csproj": {}
   },
   "projects": {
-    "c:\\Users\\User\\Documents\\Courses\\שנה ב\\Projects\\microservices\\microservices-new\\notification-service\\src\\NotificationService.csproj": {
+    "C:\\Users\\User\\Documents\\Courses\\שנה ב\\Projects\\microservices\\microservices-new\\notification-service\\src\\NotificationService.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\Users\\User\\Documents\\Courses\\שנה ב\\Projects\\microservices\\microservices-new\\notification-service\\src\\NotificationService.csproj",
+        "projectUniqueName": "C:\\Users\\User\\Documents\\Courses\\שנה ב\\Projects\\microservices\\microservices-new\\notification-service\\src\\NotificationService.csproj",
         "projectName": "NotificationService",
-        "projectPath": "c:\\Users\\User\\Documents\\Courses\\שנה ב\\Projects\\microservices\\microservices-new\\notification-service\\src\\NotificationService.csproj",
+        "projectPath": "C:\\Users\\User\\Documents\\Courses\\שנה ב\\Projects\\microservices\\microservices-new\\notification-service\\src\\NotificationService.csproj",
         "packagesPath": "C:\\Users\\User\\.nuget\\packages\\",
-        "outputPath": "c:\\Users\\User\\Documents\\Courses\\שנה ב\\Projects\\microservices\\microservices-new\\notification-service\\src\\obj\\",
+        "outputPath": "C:\\Users\\User\\Documents\\Courses\\שנה ב\\Projects\\microservices\\microservices-new\\notification-service\\src\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -50,6 +50,10 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "dependencies": {
+            "CorrelationId": {
+              "target": "Package",
+              "version": "[3.0.0, )"
+            },
             "MailKit": {
               "target": "Package",
               "version": "[4.3.0, )"
@@ -57,6 +61,22 @@
             "RabbitMQ.Client": {
               "target": "Package",
               "version": "[6.8.1, )"
+            },
+            "Serilog.AspNetCore": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Serilog.Enrichers.CorrelationId": {
+              "target": "Package",
+              "version": "[3.0.0, )"
+            },
+            "Serilog.Sinks.Console": {
+              "target": "Package",
+              "version": "[6.0.0, )"
+            },
+            "Serilog.Sinks.Seq": {
+              "target": "Package",
+              "version": "[6.0.0, )"
             }
           },
           "imports": [

@@ -55,7 +55,7 @@ export default function Header() {
           {/* Center logo */}
           <Link href="/" className="absolute left-1/2 -translate-x-1/2">
             <motion.div whileHover={{ opacity: 0.7 }} transition={{ duration: 0.3 }}>
-              <h1 className="font-serif text-3xl tracking-widest-xl text-noir font-light">MAISON</h1>
+              <h1 className="font-serif text-3xl tracking-widest-xl text-noir font-light">VÈRA</h1>
             </motion.div>
           </Link>
 

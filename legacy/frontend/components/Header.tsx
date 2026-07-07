@@ -11,7 +11,7 @@ export default function Header() {
       <div className="container mx-auto px-4 py-4">
         <div className="flex justify-between items-center">
           <Link href="/" className="text-2xl font-bold">
-            ECommerce Store
+            VÈRA
           </Link>
           
           <nav className="flex items-center space-x-4">

@@ -34,6 +34,14 @@ public class OrdersController : ControllerBase
         return Ok(orders);
     }
 
+    [HttpGet("{orderId}")]
+    public async Task<ActionResult<OrderDto>> GetOrder(int orderId)
+    {
+        var order = await _orderService.GetOrderByIdAsync(orderId, GetUserId(), User.IsInRole("Admin"));
+        if (order == null) return NotFound();
+        return Ok(order);
+    }
+
     [HttpPost]
     public async Task<ActionResult<OrderDto>> CreateOrder(CreateOrderDto dto)
     {

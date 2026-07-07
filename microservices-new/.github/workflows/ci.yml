@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      docker:
+        image: docker:24-dind
+        privileged: true
+        options: >-
+          --entrypoint="/usr/bin/dockerd" --host=unix:///var/run/docker.sock
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Restore and build backend
+        run: |
+          dotnet restore
+          dotnet build --no-restore --configuration Release
+
+      - name: Run backend unit tests
+        run: |
+          # run tests if exist
+          if [ -d "backend/src" ]; then dotnet test --no-build --verbosity normal || true; fi
+
+      - name: Install npm deps and build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build || true
+
+      - name: Lint (optional)
+        run: |
+          echo "Add linters here"
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Start services with Docker Compose
+        uses: docker/compose-action@v3
+        with:
+          files: docker-compose.test.yml
+          args: up -d --build
+
+      - name: Wait for API Gateway health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sSf http://localhost:8080/health; then echo 'gateway up' && exit 0; fi
+            echo 'waiting for gateway...' ; sleep 2
+          done
+          echo 'gateway did not become ready' ; exit 1
+
+      - name: Run smoke tests
+        run: |
+          set -e
+          curl -sSf http://localhost:8080/health
+          # Add more smoke tests below, e.g. /api/products
+
+      - name: Tear down docker-compose
+        if: always()
+        uses: docker/compose-action@v3
+        with:
+          files: docker-compose.test.yml
+          args: down -v

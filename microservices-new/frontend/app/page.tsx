@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useAuth } from '../lib/auth'
-import { apiRequest } from '../lib/api'
+import { apiRequest, API_BASE_URL } from '../lib/api'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ShoppingBag, Plus } from 'lucide-react'
 
@@ -35,8 +35,7 @@ export default function Home() {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/products`)
-      if (response.ok) setProducts(await response.json())
+      setProducts(await apiRequest('/api/products'))
     } catch (error) {
       console.error('Error fetching products:', error)
     } finally {
@@ -71,7 +70,7 @@ export default function Home() {
           transition={{ duration: 2, repeat: Infinity }}
           className="font-serif text-2xl tracking-widest text-stone"
         >
-          MAISON
+          VÈRA
         </motion.div>
       </div>
     )
@@ -129,7 +128,7 @@ export default function Home() {
               <div className="relative overflow-hidden aspect-[3/4] bg-ivory">
                 {product.imageUrl ? (
                   <motion.img
-                    src={`${process.env.NEXT_PUBLIC_API_URL}${product.imageUrl}`}
+                    src={`${API_BASE_URL}${product.imageUrl}`}
                     alt={product.name}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                   />

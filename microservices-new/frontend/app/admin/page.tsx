@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useAuth } from '../../lib/auth'
-import { apiRequest } from '../../lib/api'
+import { apiRequest, API_BASE_URL } from '../../lib/api'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Pencil, Trash2, X } from 'lucide-react'
@@ -37,8 +37,7 @@ export default function AdminPanel() {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/products`)
-      setProducts(await response.json())
+      setProducts(await apiRequest('/api/products'))
     } catch (error) { console.error(error) }
     finally { setLoading(false) }
   }
@@ -64,10 +63,7 @@ export default function AdminPanel() {
       if (imageFile) {
         const form = new FormData()
         form.append('file', imageFile)
-        const token = localStorage.getItem('token')
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/products/${productId}/image`, {
-          method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form
-        })
+        await apiRequest(`/api/products/${productId}/image`, { method: 'POST', body: form })
       }
       setShowForm(false); setEditingProduct(null); resetForm(); fetchProducts()
     } catch (error) { console.error(error) }
@@ -82,7 +78,7 @@ export default function AdminPanel() {
   const editProduct = (product: Product) => {
     setEditingProduct(product)
     setFormData({ name: product.name, description: product.description, price: product.price, category: product.category, size: product.size, stockQuantity: product.stockQuantity })
-    setImagePreview(product.imageUrl ? `${process.env.NEXT_PUBLIC_API_URL}${product.imageUrl}` : null)
+    setImagePreview(product.imageUrl ? `${API_BASE_URL}${product.imageUrl}` : null)
     setImageFile(null); setShowForm(true)
   }
 
@@ -138,7 +134,7 @@ export default function AdminPanel() {
             >
               <div className="w-16 h-20 bg-ivory flex-shrink-0 overflow-hidden">
                 {product.imageUrl ? (
-                  <img src={`${process.env.NEXT_PUBLIC_API_URL}${product.imageUrl}`} alt={product.name}
+                  <img src={`${API_BASE_URL}${product.imageUrl}`} alt={product.name}
                     className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">

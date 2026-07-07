@@ -46,9 +46,9 @@ export default function Register() {
     setError('')
     if (verificationCode !== generatedCode) { setError('Invalid verification code'); return }
     setLoading(true)
-    const success = await register(formData.email, formData.password, formData.firstName, formData.lastName)
-    if (success) router.push('/')
-    else setError('Registration failed. Please try again.')
+    const result = await register(formData.email, formData.password, formData.firstName, formData.lastName)
+    if (result.success) router.push('/')
+    else setError(result.message || 'Registration failed. Please try again.')
     setLoading(false)
   }
 
@@ -64,7 +64,7 @@ export default function Register() {
         className="w-full max-w-md"
       >
         <div className="text-center mb-10">
-          <p className="text-xs tracking-widest-xl uppercase font-sans text-gold mb-3">Join Maison</p>
+          <p className="text-xs tracking-widest-xl uppercase font-sans text-gold mb-3">Join VÈRA</p>
           <h1 className="font-serif text-4xl font-light text-noir mb-4">Create Account</h1>
           <div className="divider-gold w-16 mx-auto" />
         </div>
